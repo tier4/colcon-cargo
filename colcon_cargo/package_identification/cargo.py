@@ -42,7 +42,7 @@ class CargoPackageIdentification(PackageIdentificationExtensionPoint):
 
             if not parent_data is None:
                 if 'workspaces' in parent_data:
-                    if not metadata.path.name in data['workspaces']:
+                    if not metadata.path.name in parent_data['workspaces']:
                         return
                 else:
                     return
