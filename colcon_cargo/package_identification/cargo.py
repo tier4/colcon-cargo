@@ -70,9 +70,9 @@ def extract_data(cargo_toml):
         return
 
     workspaces = extract_workspaces(content)
+    data = {}
     if workspaces == None:
         # set the project name - fall back to use the directory name
-        data = {}
         toml_name_attr = extract_project_name(content)
         data['name'] = toml_name_attr if toml_name_attr is not None else \
             cargo_toml.parent.name
