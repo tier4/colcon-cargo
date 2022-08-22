@@ -33,6 +33,20 @@ class CargoPackageIdentification(PackageIdentificationExtensionPoint):
                 'Failed to extract Rust package information from "%s"'
                 % cargo_toml.absolute())
 
+        if 'workspaces' in data:
+            return
+
+        if metadata.path != metadata.path.parent:
+            parent_cargo = metadata.path.parent / 'Cargo.toml'
+            parent_data = extract_data(parent_cargo)
+
+            if not parent_data is None:
+                if 'workspaces' in parent_data:
+                    if not metadata.path.name in data['workspaces']:
+                        return
+                else:
+                    return
+
         metadata.type = 'cargo'
         if metadata.name is None:
             metadata.name = data['name']
@@ -55,17 +69,36 @@ def extract_data(cargo_toml):
                      % cargo_toml.absolute())
         return
 
-    # set the project name - fall back to use the directory name
-    data = {}
-    toml_name_attr = extract_project_name(content)
-    data['name'] = toml_name_attr if toml_name_attr is not None else \
-        cargo_toml.parent.name
+    workspaces = extract_workspaces(content)
+    if workspaces == None:
+        # set the project name - fall back to use the directory name
+        data = {}
+        toml_name_attr = extract_project_name(content)
+        data['name'] = toml_name_attr if toml_name_attr is not None else \
+            cargo_toml.parent.name
 
-    depends = extract_dependencies(content)
-    # exclude self references
-    data['depends'] = set(depends) - {data['name']}
+        depends = extract_dependencies(content)
+        # exclude self references
+        data['depends'] = set(depends) - {data['name']}
+    else:
+        data['workspaces'] = workspaces
 
     return data
+
+
+def extract_workspaces(content):
+    """
+    Extract workspaces the Cargo.toml file.
+
+    :param str content: The Cargo.toml parsed dictionnary
+    :returns: The workspaces, otherwise None
+    :rtype: [str]
+    """
+
+    try:
+        return content['workspace']['members']
+    except KeyError:
+        return None
 
 
 def extract_project_name(content):
