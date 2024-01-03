@@ -38,6 +38,8 @@ class CargoPackageIdentification(PackageIdentificationExtensionPoint):
 
         if metadata.path != metadata.path.parent:
             parent_cargo = metadata.path.parent / 'Cargo.toml'
+            if not parent_cargo.is_file():
+                return
             parent_data = extract_data(parent_cargo)
 
             if not parent_data is None:
