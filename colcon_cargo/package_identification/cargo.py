@@ -1,11 +1,14 @@
 # Copyright 2018 Easymov Robotics
 # Licensed under the Apache License, Version 2.0
 
-from colcon_core.logging import colcon_logger
-from colcon_core.package_identification \
-    import PackageIdentificationExtensionPoint
-from colcon_core.plugin_system import satisfies_version
+import json
+import subprocess
+
 import toml
+from colcon_core.logging import colcon_logger
+from colcon_core.package_identification import \
+    PackageIdentificationExtensionPoint
+from colcon_core.plugin_system import satisfies_version
 
 logger = colcon_logger.getChild(__name__)
 
@@ -36,8 +39,13 @@ class CargoPackageIdentification(PackageIdentificationExtensionPoint):
         if 'workspaces' in data:
             return
 
+        if not is_binary_crate(cargo_toml):
+            return
+
         if metadata.path != metadata.path.parent:
             parent_cargo = metadata.path.parent / 'Cargo.toml'
+            if not parent_cargo.is_file():
+                return
             parent_data = extract_data(parent_cargo)
 
             if not parent_data is None:
@@ -69,7 +77,7 @@ def extract_data(cargo_toml):
                      % cargo_toml.absolute())
         return
 
-    workspaces = extract_workspaces(content)
+    workspaces = extract_workspaces(content, cargo_toml)
     data = {}
     if workspaces == None:
         # set the project name - fall back to use the directory name
@@ -86,7 +94,28 @@ def extract_data(cargo_toml):
     return data
 
 
-def extract_workspaces(content):
+def is_binary_crate(cargo_toml):
+    """
+    Check if a crate is a binary crate or not
+
+
+    :param Path cargo_toml: The Cargo.toml
+    :returns: True if crate kind is binary, False otherwise
+    :rtype: [bool]
+    """
+    cmd = ["cargo", "read-manifest", "--manifest-path", str(cargo_toml)]
+    result = subprocess.run(cmd, capture_output=True)
+    if result.returncode == 0:
+        d = json.loads(result.stdout)
+        for target in d["targets"]:
+            if target["kind"] == "bin":
+                return True
+    else:
+        print(f"WARNING: {result.stderr}")
+    return False
+
+
+def extract_workspaces(content, cargo_toml):
     """
     Extract workspaces the Cargo.toml file.
 
@@ -96,7 +125,14 @@ def extract_workspaces(content):
     """
 
     try:
-        return content['workspace']['members']
+        members = []
+        ws_path = cargo_toml.parent.absolute()
+        # extract only binary crates
+        for member in content['workspace']['members']:
+            toml_path = ws_path.joinpath(member) / "Cargo.toml"
+            if is_binary_crate(toml_path):
+                members.append(member)
+        return members
     except KeyError:
         return None
 
